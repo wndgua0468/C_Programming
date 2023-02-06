@@ -1,0 +1,138 @@
+#define AOpin A0
+#define SIpin 11
+#define CLKpin 12
+// Vcc -brown
+//GND - black
+
+#define NPIXELS 128
+
+byte Pixel[NPIXELS];
+
+int LineSensor_Data[NPIXELS];
+int LineSensor_Data_Adaption[NPIXELS];
+int MAX_LineSensor_Data[NPIXELS];
+int MIN_LineSensor_Data[NPIXELS];
+int flag_line_adapation;
+
+#define FASTADC 1
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+
+#define MOTOR_DIR 4
+#define MOTOR_PWM 5 
+
+#include <Servo.h>
+#define RC_SERVO_PIN 8
+#define NEURAL_ANGLE 80
+#define LEFT_STEER_ANLGE -30
+#define RIGHT_STEER_ANLGE 30
+
+Servo Steeringservo;
+
+int Steering_Angle = NEURAL_ANGLE;
+
+void setup() {
+  // put your setup code here, to run once:
+int i;
+
+for(i = 0; i < NPIXELS; i++)
+{
+  LineSensor_Data[i] = 0;
+  LineSensor_Data_Adaption[i] = 0;
+  MAX_LineSensor_Data[i] = 1023; //0;
+  MIN_LineSensor_Data[i] = 0; //1023;
+}
+
+pinMode(SIpin, OUTPUT);
+pinMode(CLKpin, OUTPUT);
+pinMode(AOpin, INPUT);
+
+digitalWrite(SIpin, LOW); // IDLE state
+digitalWrite(CLKpin, LOW); // IDLE state
+
+#if FASTADC
+// set prescale to 16
+sbi(ADCSRA, ADPS2);
+cbi(ADCSRA, ADPS1);
+cbi(ADCSRA, ADPS0);
+#endif
+
+flag_line_adapation = 0;
+
+Steeringservo.attach(RC_SERVO_PIN);
+Steeringservo.write(NEURAL_ANGLE);
+pinMode(MOTOR_DIR, OUTPUT);
+pinMode(MOTOR_PWM, OUTPUT);
+
+Serial.begin(115200);
+
+}
+void line_adaptation(void)
+{
+  int i;
+  for(i = 0; i < NPIXELS; i++)
+  {
+    if(LineSensor_Data[i] >= MAX_LineSensor_Data[i]) MAX_LineSensor_Data[i] = LineSensor_Data[i];
+    if(LineSensor_Data[i] <= MIN_LineSensor_Data[i]) MIN_LineSensor_Data[i] = LineSensor_Data[i];
+  }
+  /*for (i = 0; i < NPIXELS; i++)
+  {
+    Serial.print("[");
+    Serial.print(i);
+    Serial.print("]");
+    Serial.print("  : ");
+    Serial.print(MAX_LineSensor_Data[i]);
+    Serial.print(" | ");
+    Serial.print(MIN_LineSensor_Data[i]);
+    Serial.println(" ");
+  }*/
+}
+void read_line_sensor(void)
+{
+  int i;
+
+    delayMicroseconds (1);
+    delay(10);
+
+    digitalWrite (CLKpin, LOW);
+    digitalWrite (SIpin, HIGH);
+    digitalWrite (CLKpin, HIGH);
+    digitalWrite (SIpin, LOW);
+
+    delayMicroseconds (1);
+
+    for (i = 0; i < NPIXELS; i++)
+    {
+      Pixel[i] = analogRead(AOpin) / 4; //8bit is enough
+      digitalWrite(CLKpin, LOW);
+      delayMicroseconds(1);
+      digitalWrite(CLKpin, HIGH);
+    }
+    for (i = 0; i < NPIXELS; i++)
+    {
+      LineSensor_Data_Adaption[i] = map(Pixel[i], MIN_LineSensor_Data[i], MAX_LineSensor_Data[i], 0, 256);
+    }
+
+   
+}
+void loop() {
+  // put your main code here, to run repeatedly:
+
+  int i;
+
+  read_line_sensor();
+  /*if(digitalRead(CLKpin) == HIGH)
+  {
+    flag_line_adapation = 1;
+  }
+  */
+  for (i = 0; i < NPIXELS; i++)
+  {
+    if(digitalRead(CLKpin) == LOW)  Serial.print(LineSensor_Data_Adaption[i]); //Serial.print(LineSensor_Data[i]);
+    else                            Serial.print((byte)Pixel[i] + 1);
+    Serial.print("  ");
+  }
+  
+  Serial.println("  ");
+  delay(100);
+}
