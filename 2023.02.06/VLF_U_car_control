@@ -1,6 +1,6 @@
 #define AOpin A0
-#define SIpin 11
-#define CLKpin 12
+#define SIpin 23
+#define CLKpin 22
 // Vcc -brown
 //GND - black
 
